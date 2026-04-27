@@ -5,12 +5,34 @@
       "name": "ubuntu-2404",
       "node": "proxmox",
       "template": "ubuntu-2404-runner-template",
-      "labels": ["energyplus", "linux", "x64", "ubuntu-24.04"],
+      "labels": [
+        "energyplus",
+        "linux",
+        "x64",
+        "ubuntu-24.04"
+      ],
       "vmid_start": 200,
       "vmid_end": 229,
       "runner_name_prefix": "energyplus-2404-runner",
       "runner_user": "packer",
       "user_data_template": "cloud-init/runner-user-data-2404.pkrtpl",
+      "storage": "local"
+    },
+    {
+      "name": "ubuntu-2604",
+      "node": "proxmox",
+      "template": "ubuntu-2604-runner-template",
+      "labels": [
+        "energyplus",
+        "linux",
+        "x64",
+        "ubuntu-26.04"
+      ],
+      "vmid_start": 230,
+      "vmid_end": 259,
+      "runner_name_prefix": "energyplus-2604-runner",
+      "runner_user": "packer",
+      "user_data_template": "cloud-init/runner-user-data-2604.pkrtpl",
       "storage": "local"
     }
   ]

@@ -28,7 +28,7 @@ variable "proxmox_node" {
 
 variable "new_template_name" {
   type        = string
-  default     = "ubuntu-2404-runner-template"
+  default     = "ubuntu-2604-runner-template"
 }
 
 variable "ssh_username" {
@@ -67,13 +67,13 @@ variable "http_bind_address" {
 
 variable "iso_url" {
   type        = string
-  description = "Ubuntu 24.04 live server ISO URL"
-  default     = "https://releases.ubuntu.com/24.04.1/ubuntu-24.04.1-live-server-amd64.iso"
+  description = "Ubuntu 26.04 live server ISO URL"
+  default     = "https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso"
 }
 
 variable "iso_file" {
   type        = string
-  description = "Existing Proxmox ISO path (example: local:iso/ubuntu-24.04.1-live-server-amd64.iso). When set, iso_url is ignored."
+  description = "Existing Proxmox ISO path (example: local:iso/ubuntu-26.04-live-server-amd64.iso). When set, iso_url is ignored."
   default     = ""
 }
 
@@ -95,7 +95,7 @@ variable "iso_download_pve" {
 #  description = "IP on the Packer host that the VM can reach for autoinstall seed"
 #}
 
-source "proxmox-iso" "ubuntu2404" {
+source "proxmox-iso" "ubuntu2604" {
   proxmox_url              = var.proxmox_url
   username                 = var.proxmox_username
   token                    = var.proxmox_token
@@ -103,7 +103,7 @@ source "proxmox-iso" "ubuntu2404" {
   insecure_skip_tls_verify = true
 
   vm_name    = var.new_template_name
-  tags       = "ubuntu-2404_ci_template"
+  tags       = "ubuntu-2604_ci_template"
   qemu_agent = true
   cloud_init = true
   cloud_init_storage_pool = "local"
@@ -164,8 +164,8 @@ source "proxmox-iso" "ubuntu2404" {
 }
 
 build {
-  name    = "ubuntu-2404-runner-template-from-iso"
-  sources = ["source.proxmox-iso.ubuntu2404"]
+  name    = "ubuntu-2604-runner-template-from-iso"
+  sources = ["source.proxmox-iso.ubuntu2604"]
 
   provisioner "file" {
     source      = "${abspath(path.root)}/scripts/runner-once.sh"
