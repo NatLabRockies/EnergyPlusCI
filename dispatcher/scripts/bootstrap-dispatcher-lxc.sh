@@ -41,8 +41,10 @@ if [[ -z "${PROXMOX_URL}" || -z "${PROXMOX_NODE}" || -z "${PROXMOX_TOKEN_ID}" ||
   exit 1
 fi
 
-if [[ ! -d "${DISPATCHER_DIR}/dispatcher" || ! -d "${DISPATCHER_DIR}/runners/ubuntu-2404/cloud-init" ]]; then
-  echo "DISPATCHER_DIR must point to the repo root (contains dispatcher/ and runners/ubuntu-2404/)" >&2
+if [[ ! -d "${DISPATCHER_DIR}/dispatcher" \
+  || ! -d "${DISPATCHER_DIR}/runners/ubuntu-2404/cloud-init" \
+  || ! -d "${DISPATCHER_DIR}/runners/ubuntu-2604/cloud-init" ]]; then
+  echo "DISPATCHER_DIR must point to the repo root (contains dispatcher/ and runners/ubuntu-2404/, runners/ubuntu-2604/)" >&2
   exit 1
 fi
 
@@ -123,7 +125,7 @@ push_files() {
   pct push "${CT_ID}" "${DISPATCHER_DIR}/dispatcher/runner-pools.json" /opt/dispatcher/runner-pools.json
   pct exec "${CT_ID}" -- mkdir -p /opt/dispatcher/cloud-init
   pct push "${CT_ID}" "${DISPATCHER_DIR}/runners/ubuntu-2404/cloud-init/runner-user-data.pkrtpl" /opt/dispatcher/cloud-init/runner-user-data-2404.pkrtpl
-  pct push "${CT_ID}" "${DISPATCHER_DIR}/runners/ubuntu-2204/cloud-init/runner-user-data.pkrtpl" /opt/dispatcher/cloud-init/runner-user-data-2204.pkrtpl
+  pct push "${CT_ID}" "${DISPATCHER_DIR}/runners/ubuntu-2604/cloud-init/runner-user-data.pkrtpl" /opt/dispatcher/cloud-init/runner-user-data-2604.pkrtpl
   if [[ -n "${PROXMOX_CA_CERT}" ]]; then
     pct exec "${CT_ID}" -- mkdir -p /opt/dispatcher/certs
     pct push "${CT_ID}" "${PROXMOX_CA_CERT}" "/opt/dispatcher/certs/$(basename "${PROXMOX_CA_CERT}")"

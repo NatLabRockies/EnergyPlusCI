@@ -6,12 +6,9 @@ packer_cache/
 crash.log
 crash.*.log
 downloaded_iso_path/
-runners/ubuntu-2204/cloud-init/*.rendered
-runners/ubuntu-2204/cloud-init/*.yaml
-runners/ubuntu-2204/cloud-init/*.yml
-runners/ubuntu-2404/cloud-init/*.rendered
-runners/ubuntu-2404/cloud-init/*.yaml
-runners/ubuntu-2404/cloud-init/*.yml
+runners/ubuntu-*/cloud-init/*.rendered
+runners/ubuntu-*/cloud-init/*.yaml
+runners/ubuntu-*/cloud-init/*.yml
 dispatcher/.env
 dispatcher/.venv
 dispatcher/dispatcher.env

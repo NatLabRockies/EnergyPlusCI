@@ -197,13 +197,6 @@ def github_headers():
     }
 
 
-def has_queued_runs():
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs"
-    resp = requests.get(url, headers=github_headers(), params={"status": "queued"}, timeout=30)
-    resp.raise_for_status()
-    return resp.json().get("total_count", 0) > 0
-
-
 def list_queued_jobs():
     queued_jobs = []
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs"

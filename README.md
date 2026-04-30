@@ -23,7 +23,7 @@ This repo assumes you have:
 ## Repo Layout
 
 - `runners/ubuntu-2404/` — Packer template + cloud-init templates for the Ubuntu 24.04 runner image
-- `runners/ubuntu-2204/` — Packer template + cloud-init templates for the Ubuntu 22.04 runner image
+- `runners/ubuntu-2604/` — Packer template + cloud-init templates for the Ubuntu 26.04 runner image
 - `dispatcher/` — autoscaler/dispatcher and LXC bootstrap scripts
 
 ---
@@ -35,10 +35,10 @@ Create a local vars file for the runner template you want to build:
 ```bash
 cp runners/ubuntu-2404/packer.pkrvars.hcl runners/ubuntu-2404/packer.auto.pkrvars.hcl
 ```
-Or for Ubuntu 22.04:
+Or for Ubuntu 26.04:
 
 ```bash
-cp runners/ubuntu-2204/packer.pkrvars.hcl runners/ubuntu-2204/packer.auto.pkrvars.hcl
+cp runners/ubuntu-2604/packer.pkrvars.hcl runners/ubuntu-2604/packer.auto.pkrvars.hcl
 ```
 
 Edit the `packer.auto.pkrvars.hcl` you just created and set real values for:
@@ -58,7 +58,7 @@ openssl passwd -6 'password'
 
 Optional overrides:
 
-- `iso_url` (Ubuntu 24.04 ISO URL)
+- `iso_url` (Ubuntu ISO URL for the selected runner image)
 - `iso_file` (existing Proxmox ISO path like `local:iso/ubuntu-24.04.1-live-server-amd64.iso`)
 - `iso_checksum` (set to `none` to skip checksum validation)
 - `iso_download_pve` (set to `false` to have Packer upload the ISO instead of Proxmox downloading it)
@@ -73,11 +73,11 @@ Run Packer from the runner directory you want to build:
 packer init runners/ubuntu-2404
 packer build runners/ubuntu-2404
 ```
-Or for Ubuntu 22.04:
+Or for Ubuntu 26.04:
 
 ```bash
-packer init runners/ubuntu-2204
-packer build runners/ubuntu-2204
+packer init runners/ubuntu-2604
+packer build runners/ubuntu-2604
 ```
 
 Notes:
@@ -91,10 +91,10 @@ To run a single file explicitly:
 ```bash
 packer build runners/ubuntu-2404/ubuntu-2404-runner-iso.pkr.hcl
 ```
-Or for Ubuntu 22.04:
+Or for Ubuntu 26.04:
 
 ```bash
-packer build runners/ubuntu-2204/ubuntu-2204-runner-iso.pkr.hcl
+packer build runners/ubuntu-2604/ubuntu-2604-runner-iso.pkr.hcl
 ```
 
 If you want to auto-detect an existing ISO in Proxmox and reuse it:
@@ -118,9 +118,7 @@ The runner is **not registered** in the image. Registration happens at boot via 
 
 ---
 
----
-
-## 5. Dispatcher (Autoscaler)
+## 4. Dispatcher (Autoscaler)
 
 The dispatcher runs in an LXC container and uses the Proxmox API + GitHub API to:
 
@@ -134,7 +132,7 @@ It deletes stopped runner VMs and can cap concurrency via pool limits.
 
 ### Runner Pools (Multiple OS Templates)
 
-The dispatcher can schedule multiple runner pools (for example Ubuntu 22.04 + 24.04) based on job `runs-on` labels. The default config lives at:
+The dispatcher can schedule multiple runner pools (for example Ubuntu 24.04 + 26.04) based on job `runs-on` labels. The default config lives at:
 
 ```
 dispatcher/runner-pools.json
@@ -147,7 +145,7 @@ The dispatcher only provisions for jobs whose `runs-on` explicitly includes
 `self-hosted`. After that opt-in check, each job is matched to a pool whose
 `labels` are a superset of the job labels.
 Use `max_total_runners` in the JSON (or `MAX_TOTAL_RUNNERS`) to cap concurrency.
-Ensure each pool's `template` exists in Proxmox (for example `ubuntu-2204-runner-template`).
+Ensure each pool's `template` exists in Proxmox (for example `ubuntu-2604-runner-template`).
 
 ### Proxmox Clustering (No HA)
 
@@ -208,7 +206,7 @@ The dispatcher uses this token only to request **short-lived runner registration
 
 ---
 
-## 6. Bootstrap the Dispatcher LXC
+## 5. Bootstrap the Dispatcher LXC
 
 Run the bootstrap script on the Proxmox host (it uses `pct` and `pveam`).
 
@@ -258,7 +256,8 @@ Notes:
 - Runner lifecycle: cloud-init powers off the VM after the job completes; the dispatcher deletes stopped runner VMs on the next poll.
 
 ---
-## 7. Secrets and Tokens
+
+## 6. Secrets and Tokens
 
 - Do not commit `packer.auto.pkrvars.hcl` or rendered cloud-init files.
 - Rotate any tokens exposed in chat or logs.
@@ -298,6 +297,6 @@ Also set the repo default to read-only:
 
 ---
 
-## 9. Troubleshooting
+## 7. Troubleshooting
 
 See `PROXMOX_SETUP.md` for Proxmox-specific guidance and known gotchas (cloud-init, networking, QEMU guest agent).
