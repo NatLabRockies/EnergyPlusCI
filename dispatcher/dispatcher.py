@@ -371,7 +371,10 @@ def pool_active_count(pool, vms):
 
 
 def pool_match(pool, job_labels):
-    return set(job_labels).issubset(set(pool["match_labels"]))
+    job_label_set = set(job_labels)
+    return "self-hosted" in job_label_set and job_label_set.issubset(
+        set(pool["match_labels"])
+    )
 
 
 def choose_pool(pools, job_labels):
