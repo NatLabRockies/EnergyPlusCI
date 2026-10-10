@@ -47,6 +47,7 @@ proxmox_username="${PROXMOX_USERNAME:-$(get_var_from_file "proxmox_username" "${
 proxmox_token="${PROXMOX_TOKEN:-$(get_var_from_file "proxmox_token" "${vars_file}" || true)}"
 proxmox_node="${PROXMOX_NODE:-$(get_var_from_file "proxmox_node" "${vars_file}" || true)}"
 iso_url="${ISO_URL:-$(get_var_from_file "iso_url" "${vars_file}" || true)}"
+iso_file="${ISO_FILE:-$(get_var_from_file "iso_file" "${vars_file}" || true)}"
 
 if [[ -z "${iso_url}" ]]; then
   iso_url="$(get_default_from_config "iso_url")"
@@ -58,19 +59,44 @@ require_value "proxmox_token" "${proxmox_token}"
 require_value "proxmox_node" "${proxmox_node}"
 require_value "iso_url" "${iso_url}"
 
-iso_name="$(basename "${iso_url}")"
 iso_storage="${PROXMOX_ISO_STORAGE:-local}"
-volid="${iso_storage}:iso/${iso_name}"
+if [[ -n "${iso_file}" ]]; then
+  volid="${iso_file}"
+else
+  iso_name="$(basename "${iso_url}")"
+  volid="${iso_storage}:iso/${iso_name}"
+fi
 
 auth_header="Authorization: PVEAPIToken=${proxmox_username}=${proxmox_token}"
 content_url="${proxmox_url}/nodes/${proxmox_node}/storage/${iso_storage}/content?content=iso"
+curl_args=(-fsS)
+case "${PROXMOX_VERIFY_SSL:-false}" in
+  1 | true | yes | on)
+    ;;
+  0 | false | no | off | "")
+    echo "Warning: Proxmox TLS certificate verification is disabled." >&2
+    curl_args+=(-k)
+    ;;
+  *)
+    curl_args+=(--cacert "${PROXMOX_VERIFY_SSL}")
+    ;;
+esac
 
-if curl -fsS -H "${auth_header}" "${content_url}" | rg -q "\"volid\"\\s*:\\s*\"${volid}\""; then
+if ! content_json="$(curl "${curl_args[@]}" -H "${auth_header}" "${content_url}")"; then
+  echo "Unable to query ISO storage on Proxmox." >&2
+  exit 1
+fi
+
+if printf '%s' "${content_json}" | rg -q "\"volid\"\\s*:\\s*\"${volid}\""; then
   echo "Found existing ISO: ${volid}"
   export PACKER_VAR_iso_file="${volid}"
 else
+  if [[ -n "${iso_file}" ]]; then
+    echo "Configured ISO not found on Proxmox storage: ${iso_file}" >&2
+    exit 1
+  fi
   echo "ISO not found on Proxmox storage; will download: ${iso_url}"
-  unset PACKER_VAR_iso_file || true
+  export PACKER_VAR_iso_file=""
 fi
 
 exec packer build "${script_dir}"
