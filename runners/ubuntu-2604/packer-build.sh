@@ -10,7 +10,7 @@ get_var_from_file() {
   local file="$2"
   local value
 
-  value="$(sed -n "s/^${key}[[:space:]]*=[[:space:]]*\"\\(.*\\)\"[[:space:]]*$/\\1/p" "${file}" | head -n 1)"
+  value="$(sed -n "s/^${key}[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*\\(#.*\\)\\?$/\\1/p" "${file}" | head -n 1)"
   if [[ -n "${value}" ]]; then
     printf '%s' "${value}"
     return 0
