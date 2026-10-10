@@ -145,12 +145,18 @@ write_env_file() {
   local runner_id_start="${RUNNER_ID_START:-}"
   local runner_id_end="${RUNNER_ID_END:-}"
   local runner_name_prefix="${RUNNER_NAME_PREFIX:-}"
+  local runner_boot_timeout="${RUNNER_BOOT_TIMEOUT:-}"
   local repo_owner="${REPO_OWNER:-}"
   local repo_name="${REPO_NAME:-}"
   local repo_url="${REPO_URL:-}"
   local runner_labels="${RUNNER_LABELS:-}"
   local poll_interval="${POLL_INTERVAL:-}"
   local snippets_dir="${SNIPPETS_DIR:-}"
+  local ccache_nfs_source="${ENERGYPLUS_CCACHE_NFS_SOURCE:-}"
+  local ccache_mount_point="${ENERGYPLUS_CCACHE_MOUNT_POINT:-}"
+  local ccache_mount_type="${ENERGYPLUS_CCACHE_MOUNT_TYPE:-}"
+  local ccache_mount_options="${ENERGYPLUS_CCACHE_MOUNT_OPTIONS:-}"
+  local ccache_mount_timeout="${ENERGYPLUS_CCACHE_MOUNT_TIMEOUT:-}"
   pct exec "${CT_ID}" -- bash -lc "cat /dev/null > /etc/default/${SERVICE_NAME}
 if [[ -n \"${PROXMOX_URL:-}\" ]]; then echo \"PROXMOX_URL=${PROXMOX_URL}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${PROXMOX_NODE:-}\" ]]; then echo \"PROXMOX_NODE=${PROXMOX_NODE}\" >> /etc/default/${SERVICE_NAME}; fi
@@ -164,12 +170,18 @@ if [[ -n \"${template_name}\" ]]; then echo \"TEMPLATE_NAME=${template_name}\" >
 if [[ -n \"${runner_id_start}\" ]]; then echo \"RUNNER_ID_START=${runner_id_start}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${runner_id_end}\" ]]; then echo \"RUNNER_ID_END=${runner_id_end}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${runner_name_prefix}\" ]]; then echo \"RUNNER_NAME_PREFIX=${runner_name_prefix}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${runner_boot_timeout}\" ]]; then echo \"RUNNER_BOOT_TIMEOUT=${runner_boot_timeout}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${repo_owner}\" ]]; then echo \"REPO_OWNER=${repo_owner}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${repo_name}\" ]]; then echo \"REPO_NAME=${repo_name}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${repo_url}\" ]]; then echo \"REPO_URL=${repo_url}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${runner_labels}\" ]]; then echo \"RUNNER_LABELS=${runner_labels}\" >> /etc/default/${SERVICE_NAME}; fi
 if [[ -n \"${poll_interval}\" ]]; then echo \"POLL_INTERVAL=${poll_interval}\" >> /etc/default/${SERVICE_NAME}; fi
-if [[ -n \"${snippets_dir}\" ]]; then echo \"SNIPPETS_DIR=${snippets_dir}\" >> /etc/default/${SERVICE_NAME}; fi"
+if [[ -n \"${snippets_dir}\" ]]; then echo \"SNIPPETS_DIR=${snippets_dir}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${ccache_nfs_source}\" ]]; then echo \"ENERGYPLUS_CCACHE_NFS_SOURCE=${ccache_nfs_source}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${ccache_mount_point}\" ]]; then echo \"ENERGYPLUS_CCACHE_MOUNT_POINT=${ccache_mount_point}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${ccache_mount_type}\" ]]; then echo \"ENERGYPLUS_CCACHE_MOUNT_TYPE=${ccache_mount_type}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${ccache_mount_options}\" ]]; then echo \"ENERGYPLUS_CCACHE_MOUNT_OPTIONS=${ccache_mount_options}\" >> /etc/default/${SERVICE_NAME}; fi
+if [[ -n \"${ccache_mount_timeout}\" ]]; then echo \"ENERGYPLUS_CCACHE_MOUNT_TIMEOUT=${ccache_mount_timeout}\" >> /etc/default/${SERVICE_NAME}; fi"
 }
 
 write_systemd() {

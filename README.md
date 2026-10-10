@@ -130,6 +130,40 @@ The dispatcher runs in an LXC container and uses the Proxmox API + GitHub API to
 
 It deletes stopped runner VMs and can cap concurrency via pool limits.
 
+### Local ccache storage
+
+Runner pools can mount a persistent local ccache share before the one-shot
+runner starts. Set `ENERGYPLUS_CCACHE_NFS_SOURCE` in the deployed dispatcher
+environment to the NFS export reachable from runner VMs, for example:
+
+```
+ENERGYPLUS_CCACHE_NFS_SOURCE=proxmox-cache-host:/srv/energyplus-ccache
+```
+
+The default Ubuntu pools mount that source at `/mnt/energyplus-ccache`. The
+EnergyPlus self-hosted Decent CI workflow then uses:
+
+```
+/mnt/energyplus-ccache/self-hosted-decent-ci/ubuntu-24.04-gcc-13.3
+```
+
+The cache mount is optional and is limited to 30 seconds by default so an
+unavailable NFS server cannot prevent the GitHub runner from registering. Set
+`ENERGYPLUS_CCACHE_MOUNT_TIMEOUT` to change that limit.
+
+To export the cache directory over NFS from the deployed host that owns the
+persistent disk:
+
+```
+CACHE_ROOT=/srv/energyplus-ccache \
+NFS_CLIENTS=192.168.0.0/16 \
+dispatcher/scripts/setup-ccache-nfs-export.sh
+```
+
+Adjust `NFS_CLIENTS` to the runner VM network. The runner images install
+`nfs-common`; if an existing template predates this change, rebuild the template
+or install `nfs-common` there before relying on the mount.
+
 ### Runner Pools (Multiple OS Templates)
 
 The dispatcher can schedule multiple runner pools (for example Ubuntu 24.04 + 26.04) based on job `runs-on` labels. The default config lives at:
@@ -186,7 +220,13 @@ REPO_OWNER=NREL
 REPO_NAME=EnergyPlus
 REPO_URL=https://github.com/NREL/EnergyPlus
 POLL_INTERVAL=15
+RUNNER_BOOT_TIMEOUT=600
+ENERGYPLUS_CCACHE_NFS_SOURCE=host:/export
+ENERGYPLUS_CCACHE_MOUNT_TIMEOUT=30
 ```
+
+`RUNNER_BOOT_TIMEOUT` is the registration grace period. A running VM that has
+not appeared online in GitHub after this many seconds is recycled.
 
 ### GitHub Token (Fine-Grained, Recommended)
 

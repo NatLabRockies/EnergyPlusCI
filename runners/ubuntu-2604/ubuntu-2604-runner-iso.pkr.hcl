@@ -33,7 +33,7 @@ variable "new_template_name" {
 
 variable "ssh_username" {
   type    = string
-  default = "ci"
+  default = "packer"
 }
 
 variable "ssh_password" {
@@ -50,7 +50,7 @@ variable "ssh_password_hash" {
 variable "runner_version" {
   type        = string
   description = "GitHub Actions runner version"
-  default     = "2.327.0"
+  default     = "2.338.0"
 }
 
 variable "runner_arch" {
@@ -180,7 +180,7 @@ build {
 
       "sudo apt-get update",
       # ADD patchelf here
-      "sudo apt-get install -y cloud-init qemu-guest-agent curl ca-certificates git build-essential python3 software-properties-common patchelf",
+      "sudo apt-get install -y cloud-init qemu-guest-agent curl ca-certificates git build-essential python3 software-properties-common patchelf nfs-common",
 
       "sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test",
       "sudo apt-get update",

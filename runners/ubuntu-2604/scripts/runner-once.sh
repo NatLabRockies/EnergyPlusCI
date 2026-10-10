@@ -25,8 +25,6 @@ runner_name="${4:-$(hostname)}"
 
 cd /opt/actions-runner
 
-export RUNNER_DISABLE_UPDATE=1
-
 # This VM is discarded after a single job. Avoid config.sh remove here:
 # it requires a separate remove token and can block shutdown if reused.
 ./config.sh \

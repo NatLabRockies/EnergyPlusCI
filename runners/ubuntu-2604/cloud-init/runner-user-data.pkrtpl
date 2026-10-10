@@ -3,6 +3,7 @@ hostname: ${runner_name}
 manage_etc_hosts: true
 
 runcmd:
+${ccache_setup_commands}
   - ["/usr/sbin/runuser", "-u", "${runner_user}", "--", "/opt/actions-runner/run-once.sh", "${repo_url}", "${registration_token}", "${runner_labels}", "${runner_name}"]
 
 power_state:

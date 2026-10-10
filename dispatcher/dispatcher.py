@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import shlex
 import tempfile
 import time
 from string import Template
@@ -47,7 +48,8 @@ TEMPLATE_NAME = env("TEMPLATE_NAME", "ubuntu-2404-runner-template")
 RUNNER_ID_START = int(env("RUNNER_ID_START", "200"))
 RUNNER_ID_END = int(env("RUNNER_ID_END", "299"))
 RUNNER_NAME_PREFIX = env("RUNNER_NAME_PREFIX", "energyplus-runner")
-RUNNER_USER = env("RUNNER_USER", "ci")
+RUNNER_USER = env("RUNNER_USER", "packer")
+RUNNER_BOOT_TIMEOUT = int(env("RUNNER_BOOT_TIMEOUT", "600"))
 
 REPO_OWNER = env("REPO_OWNER", "NatLabRockies")
 REPO_NAME = env("REPO_NAME", "EnergyPlus")
@@ -60,6 +62,15 @@ POLL_INTERVAL = int(env("POLL_INTERVAL", "15"))
 USER_DATA_TEMPLATE = env(
     "USER_DATA_TEMPLATE", "runners/ubuntu-2404/cloud-init/runner-user-data.pkrtpl"
 )
+ENERGYPLUS_CCACHE_NFS_SOURCE = env("ENERGYPLUS_CCACHE_NFS_SOURCE", "")
+ENERGYPLUS_CCACHE_MOUNT_POINT = env(
+    "ENERGYPLUS_CCACHE_MOUNT_POINT", "/mnt/energyplus-ccache"
+)
+ENERGYPLUS_CCACHE_MOUNT_TYPE = env("ENERGYPLUS_CCACHE_MOUNT_TYPE", "nfs4")
+ENERGYPLUS_CCACHE_MOUNT_OPTIONS = env(
+    "ENERGYPLUS_CCACHE_MOUNT_OPTIONS", "rw,hard,noatime,nolock"
+)
+ENERGYPLUS_CCACHE_MOUNT_TIMEOUT = int(env("ENERGYPLUS_CCACHE_MOUNT_TIMEOUT", "30"))
 
 
 def load_pools():
@@ -91,12 +102,76 @@ def normalize_pool(pool, config_dir):
     normalized["user_data_template"] = user_data_template
     normalized.setdefault("storage", PROXMOX_STORAGE)
     normalized.setdefault("max_runners", 0)
+    ccache_mount = dict(normalized.get("ccache_mount") or {})
+    ccache_mount.setdefault("source", ENERGYPLUS_CCACHE_NFS_SOURCE)
+    ccache_mount.setdefault("mount_point", ENERGYPLUS_CCACHE_MOUNT_POINT)
+    ccache_mount.setdefault("type", ENERGYPLUS_CCACHE_MOUNT_TYPE)
+    ccache_mount.setdefault("options", ENERGYPLUS_CCACHE_MOUNT_OPTIONS)
+    ccache_mount.setdefault("timeout_seconds", ENERGYPLUS_CCACHE_MOUNT_TIMEOUT)
+    normalized["ccache_mount"] = ccache_mount
 
     labels = normalized.get("labels", [])
     if isinstance(labels, str):
-        normalized["labels"] = [label.strip() for label in labels.split(",") if label.strip()]
+        normalized["labels"] = [
+            label.strip() for label in labels.split(",") if label.strip()
+        ]
     normalized["match_labels"] = sorted(set(normalized["labels"]) | {"self-hosted"})
     return normalized
+
+
+def render_cloud_init_command(command):
+    return f"  - {json.dumps(command)}"
+
+
+def render_ccache_setup_commands(pool):
+    ccache_mount = pool.get("ccache_mount") or {}
+    source = ccache_mount.get("source")
+    if not source:
+        return render_cloud_init_command(["/bin/true"])
+
+    mount_point = ccache_mount.get("mount_point", "/mnt/energyplus-ccache")
+    fs_type = ccache_mount.get("type", "nfs4")
+    options = ccache_mount.get("options", "rw,hard,noatime,nolock")
+    timeout_seconds = max(int(ccache_mount.get("timeout_seconds", 30)), 1)
+    directories = ccache_mount.get("directories", [])
+    if isinstance(directories, str):
+        directories = [directories]
+
+    mkdir_command = shlex.join(["/usr/bin/mkdir", "-p", mount_point])
+    mount_command = shlex.join(
+        [
+            "/usr/bin/timeout",
+            "--signal=TERM",
+            "--kill-after=5s",
+            f"{timeout_seconds}s",
+            "/usr/bin/mount",
+            "-t",
+            fs_type,
+            "-o",
+            options,
+            source,
+            mount_point,
+        ]
+    )
+    install_commands = []
+    for directory in directories:
+        if os.path.isabs(directory):
+            path = directory
+        else:
+            path = os.path.join(mount_point, directory)
+        install_commands.append(
+            shlex.join(["/usr/bin/install", "-d", "-m", "0777", path])
+        )
+
+    install_command = " && ".join(install_commands) or ":"
+    warning = "echo 'warning: ccache NFS mount unavailable; continuing without it' >&2"
+    script = (
+        f"if {mkdir_command}; then "
+        f"if {mount_command}; then {install_command} || {warning}; "
+        f"else {warning}; fi; "
+        f"else {warning}; fi"
+    )
+    return render_cloud_init_command(["/bin/sh", "-c", script])
 
 
 def proxmox_headers():
@@ -107,7 +182,9 @@ def proxmox_headers():
 
 def proxmox_get(path):
     url = f"{PROXMOX_URL}{path}"
-    resp = requests.get(url, headers=proxmox_headers(), verify=PROXMOX_VERIFY_SSL, timeout=30)
+    resp = requests.get(
+        url, headers=proxmox_headers(), verify=PROXMOX_VERIFY_SSL, timeout=30
+    )
     resp.raise_for_status()
     return resp.json()["data"]
 
@@ -197,26 +274,39 @@ def github_headers():
     }
 
 
-def list_queued_jobs():
-    queued_jobs = []
+def list_workflow_runs(status):
+    workflow_runs = []
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs"
     page = 1
     while True:
         resp = requests.get(
             url,
             headers=github_headers(),
-            params={"status": "queued", "per_page": 100, "page": page},
+            params={"status": status, "per_page": 100, "page": page},
             timeout=30,
         )
         resp.raise_for_status()
         runs = resp.json().get("workflow_runs", [])
         if not runs:
             break
-        for run in runs:
-            queued_jobs.extend(list_jobs_for_run(run["id"]))
+        workflow_runs.extend(runs)
         if len(runs) < 100:
             break
         page += 1
+    return workflow_runs
+
+
+def list_queued_jobs():
+    queued_jobs = []
+    seen_job_ids = set()
+    for status in ("queued", "in_progress"):
+        for run in list_workflow_runs(status):
+            for job in list_jobs_for_run(run["id"]):
+                job_id = job.get("id")
+                if job_id is None or job_id not in seen_job_ids:
+                    queued_jobs.append(job)
+                if job_id is not None:
+                    seen_job_ids.add(job_id)
     return queued_jobs
 
 
@@ -249,10 +339,33 @@ def registration_token():
     return resp.json()["token"]
 
 
-def render_user_data(reg_token, runner_name, runner_user, user_data_template, runner_labels):
+def list_github_runners():
+    runners = []
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runners"
+    page = 1
+    while True:
+        resp = requests.get(
+            url,
+            headers=github_headers(),
+            params={"per_page": 100, "page": page},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        payload = resp.json().get("runners", [])
+        runners.extend(payload)
+        if len(payload) < 100:
+            break
+        page += 1
+    return runners
+
+
+def render_user_data(
+    reg_token, runner_name, runner_user, user_data_template, runner_labels, pool
+):
     with open(user_data_template, "r", encoding="utf-8") as handle:
         template = Template(handle.read())
     return template.substitute(
+        ccache_setup_commands=render_ccache_setup_commands(pool),
         repo_url=REPO_URL,
         registration_token=reg_token,
         runner_labels=runner_labels,
@@ -276,7 +389,9 @@ def upload_snippet(contents, snippet_name, node, storage):
         with open(temp_path, "rb") as handle:
             files = {"filename": (snippet_name, handle, "text/plain")}
             data = {"content": "snippets"}
-            upid = proxmox_post(f"/nodes/{node}/storage/{storage}/upload", data=data, files=files)
+            upid = proxmox_post(
+                f"/nodes/{node}/storage/{storage}/upload", data=data, files=files
+            )
         wait_for_task(node, upid)
     finally:
         try:
@@ -327,6 +442,7 @@ def clone_and_start(pool, existing_vms):
         pool["runner_user"],
         pool["user_data_template"],
         ",".join(pool["labels"]),
+        pool,
     )
     snippet_name = f"{runner_name}.yaml"
     upload_snippet(user_data, snippet_name, node, pool["storage"])
@@ -343,6 +459,7 @@ def clone_and_start(pool, existing_vms):
 
 
 def cleanup_stopped_runners(pools, vms_by_node):
+    deleted_any = False
     for pool in pools:
         node = pool["node"]
         prefixes = {pool["runner_name_prefix"]}
@@ -355,12 +472,54 @@ def cleanup_stopped_runners(pools, vms_by_node):
                 )
                 delete_vm(node, int(vm["vmid"]), stop_first=False)
                 delete_snippet(f"{vm.get('name', vm['vmid'])}.yaml")
+                deleted_any = True
+    return deleted_any
 
 
-def pool_active_count(pool, vms):
+def runner_vm_is_active(vm, github_runners, boot_timeout=RUNNER_BOOT_TIMEOUT):
+    if vm.get("status") not in ("running", "starting"):
+        return False
+
+    runner = github_runners.get(vm.get("name", ""))
+    if runner and runner.get("status") == "online":
+        return True
+
+    if vm.get("status") == "starting":
+        return True
+
+    try:
+        uptime = int(vm["uptime"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return uptime < boot_timeout
+
+
+def cleanup_unready_runners(pools, vms_by_node, github_runners):
+    deleted_any = False
+    for pool in pools:
+        node = pool["node"]
+        prefixes = {pool["runner_name_prefix"]}
+        runners = find_runner_vms(vms_by_node.get(node, []), prefixes)
+        for vm in runners:
+            if vm.get("status") not in ("running", "starting"):
+                continue
+            if runner_vm_is_active(vm, github_runners):
+                continue
+            print(
+                f"deleting runner {vm.get('name', vm['vmid'])} on {node}: "
+                f"not online in GitHub after {vm.get('uptime', 'unknown')} seconds",
+                flush=True,
+            )
+            delete_vm(node, int(vm["vmid"]))
+            delete_snippet(f"{vm.get('name', vm['vmid'])}.yaml")
+            deleted_any = True
+    return deleted_any
+
+
+def pool_active_count(pool, vms, github_runners):
     prefixes = {pool["runner_name_prefix"]}
     runners = find_runner_vms(vms, prefixes)
-    return sum(1 for vm in runners if vm.get("status") in ("running", "starting"))
+    return sum(1 for vm in runners if runner_vm_is_active(vm, github_runners))
 
 
 def pool_match(pool, job_labels):
@@ -390,7 +549,16 @@ def main():
     max_total, pools = load_pools()
     while True:
         vms_by_node = collect_node_vms(pools)
-        cleanup_stopped_runners(pools, vms_by_node)
+        if cleanup_stopped_runners(pools, vms_by_node):
+            vms_by_node = collect_node_vms(pools)
+
+        github_runners = {
+            runner["name"]: runner
+            for runner in list_github_runners()
+            if runner.get("name")
+        }
+        if cleanup_unready_runners(pools, vms_by_node, github_runners):
+            vms_by_node = collect_node_vms(pools)
 
         queued_jobs = list_queued_jobs()
         if not queued_jobs:
@@ -403,17 +571,25 @@ def main():
             pool = choose_pool(pools, labels)
             if pool:
                 needed_counts[pool["name"]] += 1
+            else:
+                print(
+                    f"no runner pool matches queued job {job.get('id', 'unknown')} "
+                    f"labels={labels}",
+                    flush=True,
+                )
 
         total_active = 0
         active_by_pool = {}
         for pool in pools:
             node = pool["node"]
-            active = pool_active_count(pool, vms_by_node.get(node, []))
+            active = pool_active_count(pool, vms_by_node.get(node, []), github_runners)
             active_by_pool[pool["name"]] = active
             total_active += active
 
         total_capacity = max_total if max_total > 0 else None
-        available_total = None if total_capacity is None else max(total_capacity - total_active, 0)
+        available_total = (
+            None if total_capacity is None else max(total_capacity - total_active, 0)
+        )
 
         for pool in pools:
             need = needed_counts.get(pool["name"], 0)
